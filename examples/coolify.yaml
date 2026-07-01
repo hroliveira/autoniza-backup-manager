@@ -1,0 +1,33 @@
+# Configuração de Backup para Coolify
+
+server:
+  name: coolify-prod
+  environment: production
+
+retention:
+  daily: 7
+  weekly: 4
+  monthly: 12
+
+checks:
+  restic_check: true
+  read_data_subset: "1%"
+
+folders:
+  - /data/coolify
+
+postgres:
+  - name: coolify
+    container: coolify-db
+    database: coolify
+    user: coolify
+
+mysql: []
+
+redis:
+  - name: coolify
+    container: coolify-redis
+
+notifications:
+  enabled: false
+  webhook_url: ""

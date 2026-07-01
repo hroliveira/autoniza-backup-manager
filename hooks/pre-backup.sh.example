@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# ═══════════════════════════════════════════════════════════════
+# Autoniza Backup Manager - Pre-Backup Hook (exemplo)
+# ═══════════════════════════════════════════════════════════════
+# Este script é executado ANTES do backup.
+# Remova a extensão .example para ativar:
+#   cp hooks/pre-backup.sh.example hooks/pre-backup.sh
+#   chmod +x hooks/pre-backup.sh
+# ═══════════════════════════════════════════════════════════════
+
+set -Eeuo pipefail
+
+echo "[pre-backup] Executando tarefas pré-backup..."
+
+# Exemplo: notificar que o backup vai começar
+# curl -s -X POST -H "Content-Type: application/json" \
+#   -d '{"status":"starting","message":"Backup iniciado"}' \
+#   https://seu-webhook.exemplo/notify
+
+echo "[pre-backup] Tarefas pré-backup concluídas."

@@ -1,0 +1,47 @@
+# Exemplo de Docker Compose para container de backup agendado
+# Este serviço pode ser adicionado ao seu docker-compose.yml do Coolify
+# para executar backups automaticamente.
+
+version: '3.8'
+
+services:
+  # ── Serviço de Backup Automatizado ─────────────────────────
+  backup-manager:
+    image: alpine:latest
+    container_name: autoniza-backup
+    restart: unless-stopped
+    volumes:
+      - /opt/autoniza-backup:/opt/autoniza-backup:ro
+      - /data:/data:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - BACKUP_ROOT=/opt/autoniza-backup
+      - TZ=America/Sao_Paulo
+    command: >
+      sh -c "
+        apk add --no-cache bash curl docker-cli &&
+        while true; do
+          echo '[$(date)] Aguardando próximo backup...'
+          sleep 3600 &
+          wait
+          /opt/autoniza-backup/backup.sh || true
+        done
+      "
+
+  # ── MinIO (opcional - armazenamento local) ─────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+    restart: unless-stopped
+
+volumes:
+  minio_data:

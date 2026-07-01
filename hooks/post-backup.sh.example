@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# ═══════════════════════════════════════════════════════════════
+# Autoniza Backup Manager - Post-Backup Hook (exemplo)
+# ═══════════════════════════════════════════════════════════════
+# Este script é executado APÓS o backup.
+# Remova a extensão .example para ativar:
+#   cp hooks/post-backup.sh.example hooks/post-backup.sh
+#   chmod +x hooks/post-backup.sh
+# ═══════════════════════════════════════════════════════════════
+
+set -Eeuo pipefail
+
+echo "[post-backup] Executando tarefas pós-backup..."
+
+# Exemplo: enviar relatório por e-mail
+# cat /opt/autoniza-backup/reports/backup_latest.txt | mail -s "Backup Report" admin@example.com
+
+# Exemplo: sincronizar relatório para outro local
+# rsync -avz /opt/autoniza-backup/reports/ user@server:/backup/reports/
+
+echo "[post-backup] Tarefas pós-backup concluídas."

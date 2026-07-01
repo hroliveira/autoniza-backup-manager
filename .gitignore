@@ -1,0 +1,22 @@
+# ═══════════════════════════════════════════════════════════════
+# Autoniza Backup Manager - .gitignore
+# ═══════════════════════════════════════════════════════════════
+
+# ── Configurações do usuário (contém secrets) ────────────────
+config/config.env
+config/backup.yaml
+
+# ── Dados gerados em execução ─────────────────────────────────
+logs/
+tmp/
+dumps/
+reports/
+restore/
+
+# ── Backups de configuração (criados pelo update.sh) ─────────
+*.bkp
+
+# ── Sistema operacional ──────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini

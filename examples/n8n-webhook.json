@@ -1,0 +1,73 @@
+{
+  "name": "Autoniza Backup Manager - Webhook",
+  "nodes": [
+    {
+      "id": "webhook",
+      "name": "Webhook de Backup",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "path": "backup-notify",
+        "options": {}
+      }
+    },
+    {
+      "id": "if-condition",
+      "name": "Verificar Status",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.status }}",
+              "operation": "equal",
+              "value2": "success"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "success-email",
+      "name": "Notificar Sucesso",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [650, 200],
+      "parameters": {
+        "fromEmail": "backup@exemplo.com",
+        "toEmail": "admin@exemplo.com",
+        "subject": "Backup Concluído - {{ $json.server }}",
+        "text": "Backup concluído com sucesso!\n\nServidor: {{ $json.server }}\nAmbiente: {{ $json.environment }}\nSnapshot: {{ $json.snapshot }}\nDuração: {{ $json.duration }}\nMensagem: {{ $json.message }}"
+      }
+    },
+    {
+      "id": "error-email",
+      "name": "Notificar Erro",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [650, 400],
+      "parameters": {
+        "fromEmail": "backup@exemplo.com",
+        "toEmail": "admin@exemplo.com",
+        "subject": "⚠ FALHA no Backup - {{ $json.server }}",
+        "text": "Falha no backup!\n\nServidor: {{ $json.server }}\nAmbiente: {{ $json.environment }}\nMensagem: {{ $json.message }}"
+      }
+    }
+  ],
+  "connections": {
+    "webhook": {
+      "main": [
+        [{ "node": "if-condition", "type": "main", "index": 0 }]
+      ]
+    },
+    "if-condition": {
+      "main": [
+        [{ "node": "success-email", "type": "main", "index": 0 }],
+        [{ "node": "error-email", "type": "main", "index": 0 }]
+      ]
+    }
+  }
+}

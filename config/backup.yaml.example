@@ -1,0 +1,42 @@
+# ═══════════════════════════════════════════════════════════════
+# Autoniza Backup Manager - Configuração de Backup
+# ═══════════════════════════════════════════════════════════════
+# Copie este arquivo para backup.yaml e ajuste conforme necessário.
+#   cp config/backup.yaml.example config/backup.yaml
+
+server:
+  name: coolify-prod
+  environment: production
+
+# ── Política de Retenção ──────────────────────────────────────
+retention:
+  daily: 7      # manter backups dos últimos 7 dias
+  weekly: 4     # manter backups das últimas 4 semanas
+  monthly: 12   # manter backups dos últimos 12 meses
+
+# ── Verificação de Integridade ────────────────────────────────
+checks:
+  restic_check: true           # executar restic check após o backup
+  read_data_subset: "1%"       # percentual de dados para verificação
+
+# ── Pastas do Sistema a Serem Backupeadas ─────────────────────
+folders:
+  - /data/coolify
+
+# ── Bancos PostgreSQL ─────────────────────────────────────────
+postgres:
+  - name: coolify
+    container: coolify-db
+    database: coolify
+    user: coolify
+
+# ── Bancos MySQL/MariaDB ──────────────────────────────────────
+mysql: []
+
+# ── Redis ─────────────────────────────────────────────────────
+redis: []
+
+# ── Notificações (Webhook) ────────────────────────────────────
+notifications:
+  enabled: false
+  webhook_url: ""
