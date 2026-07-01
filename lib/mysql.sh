@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+
+[[ -n "${ABM_MYSQL_LOADED:-}" ]] && return 0
+ABM_MYSQL_LOADED=1
 # ═══════════════════════════════════════════════════════════════
 # Autoniza Backup Manager - MySQL/MariaDB Backup
 # ═══════════════════════════════════════════════════════════════
 
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/logger.sh
-source "${SCRIPT_DIR}/logger.sh"
 # shellcheck source=lib/utils.sh
 source "${SCRIPT_DIR}/utils.sh"
 # shellcheck source=lib/docker.sh

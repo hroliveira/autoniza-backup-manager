@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+
+[[ -n "${ABM_NOTIFY_LOADED:-}" ]] && return 0
+ABM_NOTIFY_LOADED=1
 # ═══════════════════════════════════════════════════════════════
 # Autoniza Backup Manager - Notificações via Webhook
 # ═══════════════════════════════════════════════════════════════
-
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/logger.sh
-source "${SCRIPT_DIR}/logger.sh"
 
 # ── Enviar notificação via webhook ────────────────────────────
 # Uso: send_notification <status> <message> [snapshot_id] [duration]

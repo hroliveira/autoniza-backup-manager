@@ -23,6 +23,8 @@ REPORT_DIR="${BACKUP_ROOT}/reports"
 source "${LIB_DIR}/logger.sh"
 # shellcheck source=lib/utils.sh
 source "${LIB_DIR}/utils.sh"
+# shellcheck source=lib/docker.sh
+source "${LIB_DIR}/docker.sh"
 # shellcheck source=lib/restic.sh
 source "${LIB_DIR}/restic.sh"
 # shellcheck source=lib/postgres.sh

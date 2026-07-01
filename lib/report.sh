@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+
+[[ -n "${ABM_REPORT_LOADED:-}" ]] && return 0
+ABM_REPORT_LOADED=1
 # ═══════════════════════════════════════════════════════════════
 # Autoniza Backup Manager - Gerador de Relatórios
 # ═══════════════════════════════════════════════════════════════
-
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/logger.sh
-source "${SCRIPT_DIR}/logger.sh"
 
 # ── Gerar relatório em texto simples ──────────────────────────
 generate_text_report() {

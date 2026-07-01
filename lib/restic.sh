@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+
+[[ -n "${ABM_RESTIC_LOADED:-}" ]] && return 0
+ABM_RESTIC_LOADED=1
 # ═══════════════════════════════════════════════════════════════
 # Autoniza Backup Manager - Restic Wrapper
 # ═══════════════════════════════════════════════════════════════
 
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/logger.sh
-source "${SCRIPT_DIR}/logger.sh"
 # shellcheck source=lib/utils.sh
 source "${SCRIPT_DIR}/utils.sh"
 
