@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
+set -Eeuo pipefail
 # ═══════════════════════════════════════════════════════════════
 # Autoniza Backup Manager - Gerador de Relatórios
 # ═══════════════════════════════════════════════════════════════
 
-set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/logger.sh

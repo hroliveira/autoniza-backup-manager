@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -Eeuo pipefail
 # ═══════════════════════════════════════════════════════════════
 # Autoniza Backup Manager - Pre-Backup Hook (exemplo)
 # ═══════════════════════════════════════════════════════════════
@@ -8,7 +9,6 @@
 #   chmod +x hooks/pre-backup.sh
 # ═══════════════════════════════════════════════════════════════
 
-set -Eeuo pipefail
 
 echo "[pre-backup] Executando tarefas pré-backup..."
 

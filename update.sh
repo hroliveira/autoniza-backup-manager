@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
+set -Eeuo pipefail
 # ═══════════════════════════════════════════════════════════════
 # Autoniza Backup Manager - Atualização
 # ═══════════════════════════════════════════════════════════════
 # Atualiza os scripts do projeto mantendo configurações.
 # ═══════════════════════════════════════════════════════════════
 
-set -Eeuo pipefail
 
 RESET="\033[0m"
 GREEN="\033[0;32m"

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
+set -Eeuo pipefail
 # ═══════════════════════════════════════════════════════════════
 # Autoniza Backup Manager - Logger
 # ═══════════════════════════════════════════════════════════════
 # Funções de logging com timestamp e cores para terminal.
 
-set -Eeuo pipefail
 
 # ── Cores ─────────────────────────────────────────────────────
 readonly RESET="\033[0m"

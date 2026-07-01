@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
+set -Eeuo pipefail
 # ═══════════════════════════════════════════════════════════════
 # Autoniza Backup Manager - Instalação
 # ═══════════════════════════════════════════════════════════════
 # Instala dependências, cria diretórios e configura o ambiente.
 # ═══════════════════════════════════════════════════════════════
 
-set -Eeuo pipefail
 
 # ── Cores ─────────────────────────────────────────────────────
 RESET="\033[0m"

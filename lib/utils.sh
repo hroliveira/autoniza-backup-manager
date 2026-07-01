@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
+set -Eeuo pipefail
 # ═══════════════════════════════════════════════════════════════
 # Autoniza Backup Manager - Utilitários
 # ═══════════════════════════════════════════════════════════════
 
-set -Eeuo pipefail
 
 # ── Carregar dependências ────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

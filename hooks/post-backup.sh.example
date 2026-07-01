@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -Eeuo pipefail
 # ═══════════════════════════════════════════════════════════════
 # Autoniza Backup Manager - Post-Backup Hook (exemplo)
 # ═══════════════════════════════════════════════════════════════
@@ -8,7 +9,6 @@
 #   chmod +x hooks/post-backup.sh
 # ═══════════════════════════════════════════════════════════════
 
-set -Eeuo pipefail
 
 echo "[post-backup] Executando tarefas pós-backup..."
 

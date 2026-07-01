@@ -23,7 +23,7 @@
 
 ```bash
 # Clone ou copie os arquivos para o servidor
-git clone https://github.com/seu-usuario/autoniza-backup-manager.git
+git clone https://github.com/hroliveira/autoniza-backup-manager.git
 cd autoniza-backup-manager
 
 # Execute o instalador (como root)

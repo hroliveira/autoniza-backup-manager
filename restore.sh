@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -Eeuo pipefail
 # ═══════════════════════════════════════════════════════════════
 # Autoniza Backup Manager - Script de Restauração
 # ═══════════════════════════════════════════════════════════════
@@ -6,7 +7,6 @@
 # específico para um diretório local.
 # ═══════════════════════════════════════════════════════════════
 
-set -Eeuo pipefail
 
 # ── Caminhos absolutos ───────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
