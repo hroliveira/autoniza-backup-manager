@@ -136,6 +136,71 @@ sudo /opt/autoniza-backup/restore.sh latest
 └── restore/           # Dados restaurados
 ```
 
+
+## 🔔 Notificações via n8n
+
+O Autoniza Backup Manager suporta notificações ricas enviadas diretamente a um Webhook do n8n.
+
+### Configuração
+
+1. No arquivo `/opt/autoniza-backup/config/backup.yaml`, ative as notificações e defina a URL do seu Webhook:
+   ```yaml
+   notifications:
+     enabled: true
+     webhook_url: "https://seu-n8n.dominio.com/webhook/caminho-do-seu-webhook"
+   ```
+
+### Payloads de Notificação
+
+O webhook receberá payloads em formato JSON estruturado.
+
+#### Exemplo de Sucesso
+```json
+{
+  "status": "success",
+  "server": "coolify-prod",
+  "environment": "production",
+  "hostname": "srv-coolify-01",
+  "snapshot": "fe47ac43",
+  "repository": "coolifybkp",
+  "duration": "3.42s",
+  "files": 71,
+  "size": "3.46 MiB",
+  "storage_used": "870.54 KiB",
+  "message": "Backup concluído com sucesso.",
+  "timestamp": "2026-07-01T22:15:43-03:00"
+}
+```
+
+#### Exemplo de Erro
+```json
+{
+  "status": "error",
+  "server": "coolify-prod",
+  "environment": "production",
+  "hostname": "srv-coolify-01",
+  "snapshot": null,
+  "repository": "coolifybkp",
+  "duration": "8.12s",
+  "message": "Falha ao executar o backup.",
+  "error": {
+    "stage": "restic",
+    "code": "BACKUP_FAILED",
+    "details": "Erro na linha 236 ao executar: restic backup ..."
+  },
+  "timestamp": "2026-07-01T22:15:43-03:00"
+}
+```
+
+### Exemplo de Workflow no n8n
+
+Você pode criar um workflow simples no n8n para direcionar as notificações recebidas para canais como Telegram, Slack ou Discord:
+
+```
+[ Webhook ] ──➜ [ IF: status == "success" ] ──(True)──➜ [ Telegram (Sucesso) ]
+                                            └──(False)─➜ [ Telegram (Erro/Detalhes) ]
+```
+
 ## 📚 Documentação
 
 - [Guia de Instalação](docs/INSTALL.md)
