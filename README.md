@@ -137,9 +137,9 @@ sudo /opt/autoniza-backup/restore.sh latest
 ```
 
 
-## 🔔 Notificações via n8n
+## 🔔 Notificações Enterprise via n8n
 
-O Autoniza Backup Manager suporta notificações ricas enviadas diretamente a um Webhook do n8n.
+O Autoniza Backup Manager suporta telemetria avançada enviando payloads JSON ricos para um Webhook do n8n, permitindo auditorias, histórico de execuções e dashboards.
 
 ### Configuração
 
@@ -150,9 +150,7 @@ O Autoniza Backup Manager suporta notificações ricas enviadas diretamente a um
      webhook_url: "https://seu-n8n.dominio.com/webhook/caminho-do-seu-webhook"
    ```
 
-### Payloads de Notificação
-
-O webhook receberá payloads em formato JSON estruturado.
+### Estrutura Completa do Payload
 
 #### Exemplo de Sucesso
 ```json
@@ -160,15 +158,29 @@ O webhook receberá payloads em formato JSON estruturado.
   "status": "success",
   "server": "coolify-prod",
   "environment": "production",
-  "hostname": "srv-coolify-01",
-  "snapshot": "fe47ac43",
+  "hostname": "coolify",
   "repository": "coolifybkp",
-  "duration": "3.42s",
-  "files": 71,
-  "size": "3.46 MiB",
-  "storage_used": "870.54 KiB",
+  "snapshot": "a82aa91c",
+  "metrics": {
+    "duration": "6.04s",
+    "files": 103,
+    "size": "2.016 MiB",
+    "storage_used": "692.727 KiB"
+  },
+  "execution": {
+    "id": "20260702-004313-a82aa91c",
+    "started_at": "2026-07-02T00:43:07-03:00",
+    "finished_at": "2026-07-02T00:43:13-03:00"
+  },
+  "system": {
+    "os": "Ubuntu 24.04",
+    "kernel": "6.8.0",
+    "docker": "28.3.0",
+    "restic": "0.18.0",
+    "abm": "1.3.0"
+  },
   "message": "Backup concluído com sucesso.",
-  "timestamp": "2026-07-01T22:15:43-03:00"
+  "timestamp": "2026-07-02T00:43:13-03:00"
 }
 ```
 
@@ -178,28 +190,48 @@ O webhook receberá payloads em formato JSON estruturado.
   "status": "error",
   "server": "coolify-prod",
   "environment": "production",
-  "hostname": "srv-coolify-01",
-  "snapshot": null,
+  "hostname": "coolify",
   "repository": "coolifybkp",
-  "duration": "8.12s",
-  "message": "Falha ao executar o backup.",
+  "snapshot": null,
+  "metrics": {
+    "duration": "4.92s",
+    "files": 31,
+    "size": "1.12 MiB",
+    "storage_used": "0 B"
+  },
+  "execution": {
+    "id": "20260702-004313-error",
+    "started_at": "2026-07-02T00:43:07-03:00",
+    "finished_at": "2026-07-02T00:43:12-03:00"
+  },
+  "system": {
+    "os": "Ubuntu 24.04",
+    "kernel": "6.8.0",
+    "docker": "28.3.0",
+    "restic": "0.18.0",
+    "abm": "1.3.0"
+  },
   "error": {
     "stage": "restic",
-    "code": "BACKUP_FAILED",
-    "details": "Erro na linha 236 ao executar: restic backup ..."
+    "code": "RESTIC_CONNECTION_ERROR",
+    "details": "S3 API request failed: connection refused"
   },
-  "timestamp": "2026-07-01T22:15:43-03:00"
+  "message": "Falha ao executar o backup.",
+  "timestamp": "2026-07-02T00:43:12-03:00"
 }
 ```
 
-### Exemplo de Workflow no n8n
+### Campos do Payload
+- `status`: Estado final da execução (`success` ou `error`).
+- `metrics`: Métricas de desempenho coletadas do Restic e temporizadores.
+- `execution`: Timestamps ISO e ID único da execução (`id`).
+- `system`: Metadados do servidor incluindo sistema operacional, kernel, docker, restic e versão do ABM.
+- `error`: Detalhes de falhas do estágio, códigos padronizados (ex: `PG_DUMP_FAILED`, `RESTIC_CONNECTION_ERROR`) e mensagem do erro.
 
-Você pode criar um workflow simples no n8n para direcionar as notificações recebidas para canais como Telegram, Slack ou Discord:
-
-```
-[ Webhook ] ──➜ [ IF: status == "success" ] ──(True)──➜ [ Telegram (Sucesso) ]
-                                            └──(False)─➜ [ Telegram (Erro/Detalhes) ]
-```
+### Integração no n8n, Dashboards e Histórico
+1. **Consumo no n8n**: Configure um nó **Webhook** configurado para receber requisições do tipo POST. Conecte um nó **IF** para verificar `status == "success"`.
+2. **Alertas Instantâneos**: Utilize nós do Telegram, Slack ou Discord para formatar mensagens ricas em Markdown com o ID de execução e as métricas.
+3. **Dashboards e Auditoria**: Envie os payloads diretamente para bancos de dados como PostgreSQL, InfluxDB ou Elasticsearch para montar visualizações no Grafana ou Kibana, acompanhando o crescimento de volume armazenado e tempos médios de execução.
 
 ## 📚 Documentação
 

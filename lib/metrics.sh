@@ -12,14 +12,32 @@ ABM_METRICS_FILES=0
 ABM_METRICS_SIZE="0 B"
 ABM_METRICS_STORAGE_USED="0 B"
 
-# ── Iniciar o temporizador ────────────────────────────────────
+BACKUP_START_TIME=""
+BACKUP_END_TIME=""
+EXECUTION_ID=""
+
+# ── Iniciar o temporizador e registrar data/hora de início ────
 metrics_start_timer() {
   ABM_METRICS_START=$(date +%s.%N 2>/dev/null || date +%s)
+  BACKUP_START_TIME=$(date --iso-8601=seconds 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)
 }
 
-# ── Parar o temporizador ──────────────────────────────────────
+# ── Parar o temporizador e registrar data/hora de término ─────
 metrics_stop_timer() {
   ABM_METRICS_END=$(date +%s.%N 2>/dev/null || date +%s)
+  BACKUP_END_TIME=$(date --iso-8601=seconds 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)
+}
+
+# ── Gerar ID de Execução único ────────────────────────────────
+metrics_generate_execution_id() {
+  local suffix="${1:-error}"
+  # Remover qualquer caractere inválido ou nulo
+  if [[ -z "$suffix" || "$suffix" == "null" ]]; then
+    suffix="error"
+  fi
+  local date_prefix
+  date_prefix=$(date '+%Y%m%d-%H%M%S')
+  EXECUTION_ID="${date_prefix}-${suffix}"
 }
 
 # ── Obter a duração formatada ─────────────────────────────────

@@ -23,6 +23,8 @@ REPORT_DIR="${BACKUP_ROOT}/reports"
 source "${LIB_DIR}/logger.sh"
 # shellcheck source=lib/utils.sh
 source "${LIB_DIR}/utils.sh"
+# shellcheck source=lib/system.sh
+source "${LIB_DIR}/system.sh"
 # shellcheck source=lib/metrics.sh
 source "${LIB_DIR}/metrics.sh"
 # shellcheck source=lib/docker.sh
@@ -48,6 +50,23 @@ BACKUP_YAML="${CONFIG_DIR}/backup.yaml"
 CURRENT_STAGE="backup"
 TEMP_DIR=""
 
+# ── Catálogo de Códigos de Erros ──────────────────────────────
+get_error_code() {
+  local stage="$1"
+  case "$stage" in
+    postgres)  echo "PG_DUMP_FAILED" ;;
+    mysql)     echo "MYSQL_DUMP_FAILED" ;;
+    redis)     echo "REDIS_SAVE_FAILED" ;;
+    restic)    echo "RESTIC_CONNECTION_ERROR" ;;
+    retention) echo "RESTIC_PRUNE_FAILED" ;;
+    check)     echo "RESTIC_CHECK_FAILED" ;;
+    notify)    echo "NOTIFICATION_FAILED" ;;
+    config)    echo "CONFIG_ERROR" ;;
+    backup)    echo "BACKUP_FAILED" ;;
+    *)         echo "UNKNOWN_ERROR" ;;
+  esac
+}
+
 # ── Tratamento de erros ───────────────────────────────────────
 on_error() {
   local exit_code=$?
@@ -55,14 +74,27 @@ on_error() {
   local command="$2"
 
   metrics_stop_timer
+  
+  local stage="${CURRENT_STAGE:-backup}"
+  local code
+  code=$(get_error_code "$stage")
+
+  # Gerar ID de execução de erro final
+  metrics_generate_execution_id "error"
+
   local duration
   duration=$(metrics_get_duration)
+  local files
+  files=$(metrics_get_total_files)
+  local size
+  size=$(metrics_get_backup_size)
+  local storage_used
+  storage_used=$(metrics_get_storage_used)
 
-  local stage="${CURRENT_STAGE:-backup}"
   local details="Erro na linha ${line_no} ao executar: ${command}"
 
-  log_error "Erro no estágio [${stage}] (linha ${line_no}): ${command}"
-  notify_error "$stage" "BACKUP_FAILED" "$details" "$duration"
+  log_error "Erro no estágio [${stage}] com código [${code}] (linha ${line_no}): ${command}"
+  notify_error "$stage" "$code" "$details" "$duration" "$files" "$size" "$storage_used" "$BACKUP_START_TIME" "$BACKUP_END_TIME" "$EXECUTION_ID"
 
   # Limpar pasta temporária
   [[ -n "${TEMP_DIR:-}" && -d "$TEMP_DIR" ]] && rm -rf "$TEMP_DIR" && log_info "Tmp limpo após erro: $TEMP_DIR"
@@ -81,13 +113,15 @@ trap cleanup EXIT SIGINT SIGTERM
 # ── Main ──────────────────────────────────────────────────────
 main() {
   metrics_start_timer
+  collect_system_info
+  metrics_generate_execution_id "pending"
 
   log_success "═══════════════════════════════════════════════"
   log_success "  Autoniza Backup Manager - Iniciando Backup"
   log_success "═══════════════════════════════════════════════"
 
   # ── 1. Carregar configurações ──────────────────────────────
-  CURRENT_STAGE="backup"
+  CURRENT_STAGE="config"
   log_step "Carregando configurações..."
   require_command "yq"
   require_command "jq"
@@ -125,6 +159,7 @@ main() {
   log_info "Servidor: $SERVER_NAME | Ambiente: $SERVER_ENV"
 
   # ── 2. Criar diretórios necessários ────────────────────────
+  CURRENT_STAGE="backup"
   ensure_dir "$LOG_DIR"
   ensure_dir "$TMP_DIR"
   ensure_dir "$DUMP_DIR"
@@ -291,9 +326,12 @@ main() {
   generate_text_report "$text_report" "success" "$snapshot" "$elapsed" "$details"
   generate_html_report "$html_report" "success" "$snapshot" "$elapsed" "$details"
 
+  # Regenerar ID da execução com o snapshot real
+  metrics_generate_execution_id "$snapshot"
+
   # ── 15. Notificar via webhook ───────────────────────────────
   CURRENT_STAGE="notify"
-  notify_success "$snapshot" "$elapsed" "$files" "$size" "$storage_used"
+  notify_success "$snapshot" "$elapsed" "$files" "$size" "$storage_used" "$BACKUP_START_TIME" "$BACKUP_END_TIME" "$EXECUTION_ID"
 
   # ── 16. Resumo final ──────────────────────────────────────
   echo ""
