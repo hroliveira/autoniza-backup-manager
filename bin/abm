@@ -112,6 +112,7 @@ trap 'on_error ${LINENO} "$BASH_COMMAND"' ERR
 
 cleanup() {
   [[ -n "${TEMP_DIR:-}" && -d "$TEMP_DIR" ]] && rm -rf "$TEMP_DIR"
+  return 0
 }
 trap cleanup EXIT SIGINT SIGTERM
 
@@ -139,8 +140,9 @@ Comandos:
 
 Opções do comando restore:
   --snapshot <id>          ID do snapshot a ser restaurado diretamente (sem interatividade)
-  --dry-run                Simula a restauração mostrando apenas o planejamento das ações
-  --target <dir>           Destino temporário para extração dos arquivos
+  --dry-run                Simula a extração segura sem chamar o Restic
+  --target <dir>           Destino para extração dos arquivos (padrão: restore/<snapshot-id>)
+  --apply                  Aplica dados extraídos em containers/caminhos originais (destrutivo)
 
 EOF
 }
@@ -161,7 +163,7 @@ show_status() {
     snap_count=$(echo "$snaps_json" | jq '. | length' 2>/dev/null || echo 0)
     if [[ "$snap_count" -gt 0 ]]; then
       last_snap=$(echo "$snaps_json" | jq -r 'last | .short_id')
-      last_bkp=$(echo "$snaps_json" | jq -r 'last | .time' | sub("\\.[0-9]+"; "") | tr -d 'TZ')
+      last_bkp=$(echo "$snaps_json" | jq -r 'last | .time | sub("\\.[0-9]+"; "")' | tr -d 'TZ')
     fi
   fi
 
@@ -332,12 +334,14 @@ main() {
       local snap_id=""
       local dry_run="false"
       local target=""
+      local apply="false"
       
       while [[ $# -gt 0 ]]; do
         case "$1" in
           --snapshot) snap_id="$2"; shift 2 ;;
           --dry-run) dry_run="true"; shift ;;
           --target) target="$2"; shift 2 ;;
+          --apply) apply="true"; shift ;;
           *) log_error "Opção desconhecida: $1"; exit 1 ;;
         esac
       done
@@ -346,7 +350,7 @@ main() {
         if ! validate_snapshot "$snap_id"; then
           exit 1
         fi
-        execute_restore "$snap_id" "all" "$dry_run" "$target"
+        execute_restore "$snap_id" "all" "$dry_run" "$target" "$apply"
       else
         interactive_restore
       fi

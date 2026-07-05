@@ -100,12 +100,14 @@ Inicie o menu interativo para escolher o snapshot e o que deseja restaurar:
 abm restore
 ```
 
-### 4. Restauração Direta / Simulação (Dry-Run)
-Restaure um snapshot diretamente ou faça uma simulação seca:
+### 4. Extração Segura / Simulação (Dry-Run)
+Extraia um snapshot para revisão ou faça uma simulação seca:
 ```bash
 abm restore --snapshot <snapshot-id>
 abm restore --snapshot <snapshot-id> --dry-run
 ```
+
+Para escrever em containers/caminhos originais, use `--apply` somente após revisar a extração e confirmar a operação.
 
 ### 5. Listar Snapshots
 Exiba todos os backups criptografados no repositório S3:

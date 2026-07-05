@@ -44,12 +44,18 @@ metrics_generate_execution_id() {
 metrics_get_duration() {
   local start="${ABM_METRICS_START:-0}"
   local end="${ABM_METRICS_END:-0}"
+  if [[ "$start" == "0" || "$end" == "0" ]]; then
+    echo "0s"
+    return 0
+  fi
   if [[ "$start" == *.* && "$end" == *.* ]]; then
     local diff
     diff=$(awk "BEGIN {printf \"%.2f\", $end - $start}" 2>/dev/null || echo "0.00")
     echo "${diff}s"
-  else
+  elif [[ "$start" =~ ^[0-9]+$ && "$end" =~ ^[0-9]+$ ]]; then
     echo "$((end - start))s"
+  else
+    echo "0s"
   fi
 }
 

@@ -14,7 +14,7 @@ version: '3.8'
 
 services:
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2026-06-13T11-33-47Z
     container_name: minio
     command: server /data --console-address ":9001"
     ports:
@@ -24,7 +24,7 @@ services:
       - minio_data:/data
     environment:
       MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin123
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?defina uma senha forte}
     restart: unless-stopped
 
 volumes:
@@ -44,7 +44,7 @@ Acesse o console do MinIO em `http://localhost:9001` e crie um bucket chamado `c
 Ou use a CLI:
 
 ```bash
-mc alias set myminio http://localhost:9000 minioadmin minioadmin123
+mc alias set myminio http://localhost:9000 minioadmin '<senha-forte>'
 mc mb myminio/coolifybkp
 ```
 
@@ -55,7 +55,7 @@ Edite `/opt/autoniza-backup/config/config.env`:
 ```env
 RESTIC_REPOSITORY="s3:http://localhost:9000/coolifybkp"
 AWS_ACCESS_KEY_ID="minioadmin"
-AWS_SECRET_ACCESS_KEY="minioadmin123"
+AWS_SECRET_ACCESS_KEY="<secret-key-forte>"
 RESTIC_PASSWORD="sua-senha-forte-aqui"
 ```
 

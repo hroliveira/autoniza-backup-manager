@@ -21,6 +21,18 @@ source "${LIB_DIR}/utils.sh"
 source "${LIB_DIR}/metrics.sh"
 source "${LIB_DIR}/system.sh"
 
+test_shell_syntax() {
+  log_step "Validando sintaxe shell..."
+
+  bash -n "${PROJECT_ROOT}/bin/abm"
+  local file
+  for file in "${PROJECT_ROOT}"/lib/*.sh "${PROJECT_ROOT}"/*.sh; do
+    bash -n "$file"
+  done
+
+  log_success "Sintaxe shell válida."
+}
+
 test_yq_get() {
   log_step "Testando yq_get..."
   # Como yq_get depende de arquivos reais, podemos testar com mock simples
@@ -112,10 +124,84 @@ snapshot abc12345 saved
   log_success "Teste de métricas passou!"
 }
 
+test_cli_help() {
+  log_step "Testando smoke da CLI help..."
+
+  local output
+  output="$(BACKUP_ROOT="$PROJECT_ROOT" "${PROJECT_ROOT}/bin/abm" help)"
+  if [[ "$output" != *"Uso: abm"* || "$output" != *"--apply"* ]]; then
+    log_error "Help da CLI não contém o conteúdo esperado."
+    exit 1
+  fi
+
+  log_success "Smoke da CLI help passou!"
+}
+
+test_restore_dry_run() {
+  log_step "Testando restore dry-run seguro..."
+
+  local tmp_bin output
+  tmp_bin="$(mktemp -d)"
+  cat > "${tmp_bin}/restic" <<'EOF'
+#!/usr/bin/env bash
+if [[ "$1" == "snapshots" && "$2" == "--json" ]]; then
+  printf '%s\n' '[{"id":"abcdef1234567890","short_id":"abcdef12","time":"2026-01-02T03:04:05.000000000Z","hostname":"test","paths":["/data"]}]'
+  exit 0
+fi
+echo "restic mock: comando inesperado $*" >&2
+exit 1
+EOF
+  chmod +x "${tmp_bin}/restic"
+
+  output="$(PATH="${tmp_bin}:$PATH" BACKUP_ROOT="$PROJECT_ROOT" "${PROJECT_ROOT}/bin/abm" restore --snapshot abcdef12 --dry-run)"
+  rm -rf "$tmp_bin"
+
+  if [[ "$output" != *"DRY RUN"* || "$output" != *"Nenhuma alteração será feita"* ]]; then
+    log_error "Restore dry-run não apresentou mensagem segura esperada."
+    exit 1
+  fi
+
+  log_success "Restore dry-run seguro passou!"
+}
+
+test_restore_apply_requires_confirmation() {
+  log_step "Testando bloqueio de --apply sem confirmação..."
+
+  local tmp_bin output status
+  tmp_bin="$(mktemp -d)"
+  cat > "${tmp_bin}/restic" <<'EOF'
+#!/usr/bin/env bash
+if [[ "$1" == "snapshots" && "$2" == "--json" ]]; then
+  printf '%s\n' '[{"id":"abcdef1234567890","short_id":"abcdef12","time":"2026-01-02T03:04:05.000000000Z","hostname":"test","paths":["/data"]}]'
+  exit 0
+fi
+echo "restic mock: comando inesperado $*" >&2
+exit 1
+EOF
+  chmod +x "${tmp_bin}/restic"
+
+  set +e
+  output="$(PATH="${tmp_bin}:$PATH" BACKUP_ROOT="$PROJECT_ROOT" "${PROJECT_ROOT}/bin/abm" restore --snapshot abcdef12 --apply 2>&1 </dev/null)"
+  status=$?
+  set -e
+  rm -rf "$tmp_bin"
+
+  if [[ "$status" -eq 0 || "$output" != *"Confirmação interativa indisponível"* ]]; then
+    log_error "--apply sem confirmação não foi bloqueado como esperado."
+    exit 1
+  fi
+
+  log_success "--apply sem confirmação foi bloqueado."
+}
+
 main() {
+  test_shell_syntax
   test_human_size
   test_duration
   test_metrics
+  test_cli_help
+  test_restore_dry_run
+  test_restore_apply_requires_confirmation
   log_success "Todos os testes passaram com sucesso!"
 }
 

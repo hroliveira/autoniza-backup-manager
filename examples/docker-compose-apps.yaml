@@ -7,7 +7,7 @@ version: '3.8'
 services:
   # ── Serviço de Backup Automatizado ─────────────────────────
   backup-manager:
-    image: alpine:latest
+    image: alpine:3.20
     container_name: autoniza-backup
     restart: unless-stopped
     volumes:
@@ -30,7 +30,7 @@ services:
 
   # ── MinIO (opcional - armazenamento local) ─────────────────
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2026-06-13T11-33-47Z
     container_name: minio
     command: server /data --console-address ":9001"
     ports:
@@ -40,7 +40,7 @@ services:
       - minio_data:/data
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?defina uma senha forte}
     restart: unless-stopped
 
 volumes:

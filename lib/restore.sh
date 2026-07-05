@@ -44,12 +44,38 @@ notify_restore_status() {
   fi
 }
 
-# Executa o restore real
+confirm_destructive_restore() {
+  local snapshot_id="$1"
+  local restore_scope="$2"
+  local target_dir="$3"
+
+  if [[ "${ABM_RESTORE_CONFIRM:-}" == "APPLY" ]]; then
+    return 0
+  fi
+
+  log_warn "ATENÇÃO: --apply pode sobrescrever bancos, containers e caminhos originais."
+  log_warn "Snapshot: ${snapshot_id} | Escopo: ${restore_scope} | Extração: ${target_dir}"
+
+  if [[ ! -t 0 ]]; then
+    log_error "Confirmação interativa indisponível. Para automação consciente, defina ABM_RESTORE_CONFIRM=APPLY."
+    return 1
+  fi
+
+  local confirmation
+  read -rp "Digite APLICAR para confirmar a escrita nos destinos originais: " confirmation
+  if [[ "$confirmation" != "APLICAR" ]]; then
+    log_error "Confirmação inválida. Restore destrutivo cancelado."
+    return 1
+  fi
+}
+
+# Extrai snapshots de forma segura. Escrita em containers/caminhos originais exige --apply.
 execute_restore() {
   local snapshot_id="$1"
   local restore_scope="$2" # db, files, volumes, all
   local dry_run="${3:-false}"
   local target_dir="${4:-}"
+  local apply="${5:-false}"
 
   # Se target_dir estiver vazio, usar pasta padrão
   if [[ -z "$target_dir" ]]; then
@@ -61,28 +87,38 @@ execute_restore() {
   log_success "═══════════════════════════════════════════════"
   log_info "Snapshot:    ${snapshot_id}"
   log_info "Escopo:      ${restore_scope}"
-  log_info "Destino Temporário/Extração: ${target_dir}"
+  log_info "Destino de extração: ${target_dir}"
   log_info "Dry-Run:     ${dry_run}"
+  log_info "Aplicar em origem: ${apply}"
   echo ""
+
+  if [[ "$apply" == "true" && "$dry_run" == "true" ]]; then
+    log_error "Use --apply ou --dry-run, não ambos."
+    return 1
+  fi
+
+  if [[ "$apply" == "true" ]]; then
+    confirm_destructive_restore "$snapshot_id" "$restore_scope" "$target_dir"
+  fi
 
   # Hook before_restore
   local before_hook="${BACKUP_ROOT}/hooks/before-restore.sh"
-  if [[ "$dry_run" == "false" && -f "$before_hook" && -x "$before_hook" ]]; then
+  if [[ "$apply" == "true" && -f "$before_hook" && -x "$before_hook" ]]; then
     log_step "Executando before_restore hook..."
     "$before_hook"
   fi
 
   if [[ "$dry_run" == "true" ]]; then
-    log_success "--- DRY RUN - Nenhuma alteração real será feita ---"
-    log_info "1. Extração simulada do snapshot Restic para: $target_dir"
+    log_success "--- DRY RUN - Nenhuma alteração será feita ---"
+    log_info "1. Extração segura simulada do snapshot Restic para: $target_dir"
     if [[ "$restore_scope" == "db" || "$restore_scope" == "all" ]]; then
-      log_info "2. Banco: Simulação de restauração de dumps PostgreSQL, MySQL e Redis"
+      log_info "2. Banco: dumps ficariam disponíveis para revisão manual"
     fi
     if [[ "$restore_scope" == "files" || "$restore_scope" == "all" ]]; then
-      log_info "3. Arquivos: Simulação de cópia dos arquivos do sistema"
+      log_info "3. Arquivos: pastas ficariam disponíveis no destino de extração"
     fi
     if [[ "$restore_scope" == "volumes" || "$restore_scope" == "all" ]]; then
-      log_info "4. Docker Volumes: Simulação de restauração dos volumes"
+      log_info "4. Docker Volumes: volumes ficariam disponíveis no destino de extração"
     fi
     log_success "--- FIM DO DRY RUN ---"
     return 0
@@ -95,6 +131,15 @@ execute_restore() {
     log_error "Erro ao extrair o snapshot do Restic."
     notify_restore_status "fail" "$snapshot_id" "$restore_scope" "Erro na extração do restic"
     return 1
+  fi
+
+  if [[ "$apply" != "true" ]]; then
+    log_success "Extração concluída em modo seguro."
+    log_info "Nenhum banco, container ou caminho original foi alterado."
+    log_info "Revise os dados extraídos em: $target_dir"
+    log_info "Para aplicar em containers/caminhos originais, execute novamente com --apply e confirme a operação."
+    notify_restore_status "success" "$snapshot_id" "$restore_scope" "Snapshot extraído em modo seguro."
+    return 0
   fi
 
   # Restaurar Banco
@@ -207,7 +252,7 @@ execute_restore() {
 
   # Hook after_restore
   local after_hook="${BACKUP_ROOT}/hooks/after-restore.sh"
-  if [[ -f "$after_hook" && -x "$after_hook" ]]; then
+  if [[ "$apply" == "true" && -f "$after_hook" && -x "$after_hook" ]]; then
     log_step "Executando after_restore hook..."
     "$after_hook"
   fi
@@ -238,7 +283,7 @@ interactive_restore() {
   for i in $(seq 0 $((snap_count - 1))); do
     local snap_id snap_time snap_host snap_paths
     snap_id=$(echo "$snaps" | jq -r ".[$i].short_id")
-    snap_time=$(echo "$snaps" | jq -r ".[$i].time" | sub("\\.[0-9]+"; "") | tr -d 'TZ')
+    snap_time=$(echo "$snaps" | jq -r ".[$i].time | sub(\"\\\\.[0-9]+\"; \"\")" | tr -d 'TZ')
     snap_host=$(echo "$snaps" | jq -r ".[$i].hostname")
     snap_paths=$(echo "$snaps" | jq -r ".[$i].paths | join(\", \")")
     echo "$((i + 1))) ID: $snap_id | Data: $snap_time | Host: $snap_host | Caminhos: $snap_paths"
@@ -287,13 +332,13 @@ interactive_restore() {
   echo "--- RESUMO DA RESTAURAÇÃO ---"
   echo "Snapshot ID: $selected_id"
   echo "Escopo:      $scope"
-  echo "Ação:        Esta operação irá restaurar os dados correspondentes."
+  echo "Ação padrão: extrair dados para revisão, sem alterar containers ou caminhos originais."
   echo "-----------------------------"
-  read -rp "Confirma a execução da restauração? (s/N): " confirm
+  read -rp "Confirma a extração segura? (s/N): " confirm
   if [[ "$confirm" != "s" && "$confirm" != "S" ]]; then
     log_info "Restauração cancelada pelo usuário."
     exit 0
   fi
   
-  execute_restore "$selected_id" "$scope" "false" ""
+  execute_restore "$selected_id" "$scope" "false" "" "false"
 }
