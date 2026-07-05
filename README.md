@@ -41,7 +41,7 @@ A instalação irá configurar todos os arquivos em `/opt/autoniza-backup` e lin
 ### 1. Credenciais S3/MinIO
 Edite `/opt/autoniza-backup/config/config.env`:
 ```env
-RESTIC_REPOSITORY="s3:https://api-minio.seudominio.com/coolifybkp"
+RESTIC_REPOSITORY="s3:https://minio.autoniza.com.br/coolifybkp"
 AWS_ACCESS_KEY_ID="sua_access_key"
 AWS_SECRET_ACCESS_KEY="sua_secret_key"
 RESTIC_PASSWORD="senha_forte_para_criptografia"
@@ -73,7 +73,7 @@ redis:
     container: coolify-redis
 
 notifications:
-  webhook_url: "https://seu-n8n.dominio.com/webhook/backup"
+  webhook_url: "https://n8n.autoniza.com.br/webhook/backup"
 ```
 
 ---
@@ -108,6 +108,12 @@ abm restore --snapshot <snapshot-id> --dry-run
 ```
 
 Para escrever em containers/caminhos originais, use `--apply` somente após revisar a extração e confirmar a operação.
+
+## Segurança Operacional
+
+- Restore sem `--apply` apenas extrai dados para inspeção; restore aplicado pode sobrescrever bancos, containers e caminhos originais.
+- Montar `/var/run/docker.sock` em containers equivale a conceder alto privilégio sobre o host Docker. Use somente em ambiente isolado, com permissões mínimas possíveis e validação operacional da Ariel antes de produção.
+- Evite dependências flutuantes. O instalador usa fallback pinado para Restic e yq via `RESTIC_VERSION` e `YQ_VERSION`; imagens Docker nos exemplos também devem permanecer versionadas.
 
 ### 5. Listar Snapshots
 Exiba todos os backups criptografados no repositório S3:

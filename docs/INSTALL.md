@@ -78,6 +78,19 @@ ls -la /opt/autoniza-backup/config/
 
 ```bash
 cd /caminho/do/projeto
-git pull
+git fetch origin feature/v2-evolution
+git merge --ff-only origin/feature/v2-evolution
 sudo bash update.sh
 ```
+
+Evite `git pull` cego em produção. A atualização deve preservar `config.env` e `backup.yaml`, validar fast-forward e manter backup de rollback em `/opt/autoniza-backup/backups/update_<timestamp>/`.
+
+## Pinagem de Dependências
+
+O instalador prioriza pacotes da distribuição quando disponíveis. Para fallback via GitHub Releases, use versões pinadas:
+
+```bash
+sudo RESTIC_VERSION=0.18.0 YQ_VERSION=4.45.4 bash install.sh
+```
+
+Não use URLs `latest` para Restic, yq ou imagens Docker em ambientes operacionais.

@@ -64,7 +64,7 @@ Funcionalidades obrigatórias:
 
 2. config.env.example
 Variáveis:
-RESTIC_REPOSITORY=s3:https://minio.example.com/coolifybkp
+RESTIC_REPOSITORY=s3:https://minio.autoniza.com.br/coolifybkp
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
 RESTIC_PASSWORD=

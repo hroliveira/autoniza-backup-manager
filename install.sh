@@ -14,6 +14,8 @@ BOLD="\033[1m"
 INSTALL_DIR="/opt/autoniza-backup"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_USER="${SUDO_USER:-${USER}}"
+RESTIC_VERSION="${RESTIC_VERSION:-0.18.0}"
+YQ_VERSION="${YQ_VERSION:-4.45.4}"
 
 detect_distro() {
   if [[ -f /etc/debian_version ]]; then
@@ -33,6 +35,22 @@ check_root() {
     echo -e "Reexecute com: ${BOLD}sudo bash install.sh${RESET}"
     echo ""
   fi
+}
+
+install_restic_pinned() {
+  local url="https://github.com/restic/restic/releases/download/v${RESTIC_VERSION}/restic_${RESTIC_VERSION}_linux_amd64.bz2"
+  echo -e "${BLUE}[➜]${RESET} Instalando Restic ${RESTIC_VERSION} via release pinada..."
+  wget -q "$url" -O /tmp/restic.bz2
+  bunzip2 -f /tmp/restic.bz2
+  mv /tmp/restic /usr/local/bin/restic
+  chmod +x /usr/local/bin/restic
+}
+
+install_yq_pinned() {
+  local url="https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"
+  echo -e "${BLUE}[➜]${RESET} Instalando yq ${YQ_VERSION} via release pinada..."
+  wget -q "$url" -O /usr/local/bin/yq
+  chmod +x /usr/local/bin/yq
 }
 
 install_deps() {
@@ -69,30 +87,22 @@ install_deps() {
       apt-get install -y -qq jq curl wget 2>/dev/null
       if ! command -v restic &>/dev/null; then
         apt-get install -y -qq restic 2>/dev/null || {
-          wget -q https://github.com/restic/restic/releases/latest/download/restic_linux_amd64.bz2 -O /tmp/restic.bz2
-          bunzip2 /tmp/restic.bz2
-          mv /tmp/restic /usr/local/bin/restic
-          chmod +x /usr/local/bin/restic
+          install_restic_pinned
         }
       fi
       if ! command -v yq &>/dev/null; then
-        wget -q https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq
-        chmod +x /usr/local/bin/yq
+        install_yq_pinned
       fi
       ;;
     rhel)
       yum install -y jq curl wget 2>/dev/null || dnf install -y jq curl wget 2>/dev/null
       if ! command -v restic &>/dev/null; then
         yum install -y restic 2>/dev/null || dnf install -y restic 2>/dev/null || {
-          wget -q https://github.com/restic/restic/releases/latest/download/restic_linux_amd64.bz2 -O /tmp/restic.bz2
-          bunzip2 /tmp/restic.bz2
-          mv /tmp/restic /usr/local/bin/restic
-          chmod +x /usr/local/bin/restic
+          install_restic_pinned
         }
       fi
       if ! command -v yq &>/dev/null; then
-        wget -q https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq
-        chmod +x /usr/local/bin/yq
+        install_yq_pinned
       fi
       ;;
     arch)
@@ -102,14 +112,10 @@ install_deps() {
       echo -e "${YELLOW}[WARN]${RESET} Distribuição não detectada. Tentando instalar via apt..."
       apt-get update -qq 2>/dev/null && apt-get install -y -qq jq restic curl wget 2>/dev/null || true
       if ! command -v yq &>/dev/null; then
-        wget -q https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq
-        chmod +x /usr/local/bin/yq
+        install_yq_pinned
       fi
       if ! command -v restic &>/dev/null; then
-        wget -q https://github.com/restic/restic/releases/latest/download/restic_linux_amd64.bz2 -O /tmp/restic.bz2
-        bunzip2 /tmp/restic.bz2
-        mv /tmp/restic /usr/local/bin/restic
-        chmod +x /usr/local/bin/restic
+        install_restic_pinned
       fi
       ;;
   esac

@@ -62,7 +62,7 @@ RESTIC_PASSWORD="sua-senha-forte-aqui"
 ### Para MinIO remoto (exemplo com domínio):
 
 ```env
-RESTIC_REPOSITORY="s3:https://api-minio.seudominio.com/coolifybkp"
+RESTIC_REPOSITORY="s3:https://minio.autoniza.com.br/coolifybkp"
 AWS_ACCESS_KEY_ID="sua-access-key"
 AWS_SECRET_ACCESS_KEY="sua-secret-key"
 RESTIC_PASSWORD="sua-senha-forte-aqui"

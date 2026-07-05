@@ -15,7 +15,7 @@ All notable changes to this project will be documented in this file.
 - Subcommand `abm report` reporting previous backup history, durations, sizes, failure, and success rates.
 - Subcommand `abm config` for viewing/editing backup.yaml and config.env.
 - Subcommand `abm schedule` for managing cron jobs easily.
-- Subcommand `abm update` to update via git pull.
+- Subcommand `abm update` with fetch, fast-forward validation, config preservation, and rollback backup.
 - Verification pipeline using GitHub Actions (shellcheck, yamllint, markdownlint).
 - Automated unit test suite under `tests/`.
 

@@ -286,7 +286,7 @@ abm update
 
 Executar:
 
-git pull
+git fetch + fast-forward validado
 
 validar
 

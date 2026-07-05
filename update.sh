@@ -13,6 +13,8 @@ BOLD="\033[1m"
 INSTALL_DIR="/opt/autoniza-backup"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_USER="${SUDO_USER:-${USER}}"
+UPDATE_ID="$(date '+%Y%m%d_%H%M%S')"
+UPDATE_BACKUP_DIR="${INSTALL_DIR}/backups/update_${UPDATE_ID}"
 
 echo ""
 echo "╔══════════════════════════════════════════════════════════════╗"
@@ -26,16 +28,33 @@ if [[ ! -d "$INSTALL_DIR" ]]; then
   exit 1
 fi
 
+for required in backup.sh restore.sh update.sh uninstall.sh VERSION bin/abm; do
+  if [[ ! -e "${PROJECT_DIR}/${required}" ]]; then
+    echo -e "${YELLOW}⚠ Arquivo obrigatório ausente no pacote: ${required}.${RESET}"
+    exit 1
+  fi
+done
+
 echo -e "${BLUE}[➜]${RESET} Atualizando scripts em ${INSTALL_DIR}..."
 
-# Backup de configurações existentes
+mkdir -p "$UPDATE_BACKUP_DIR/config" "$UPDATE_BACKUP_DIR/bin" "$UPDATE_BACKUP_DIR/lib" "$UPDATE_BACKUP_DIR/root"
+echo -e "${GREEN}[OK]${RESET} Backup de rollback criado em ${UPDATE_BACKUP_DIR}."
+
+# Backup de configurações e artefatos existentes
 if [[ -f "${INSTALL_DIR}/config/config.env" ]]; then
-  cp "${INSTALL_DIR}/config/config.env" "${INSTALL_DIR}/config/config.env.bkp"
+  cp "${INSTALL_DIR}/config/config.env" "${UPDATE_BACKUP_DIR}/config/config.env"
   echo -e "${GREEN}[OK]${RESET} Backup de config.env criado."
 fi
 if [[ -f "${INSTALL_DIR}/config/backup.yaml" ]]; then
-  cp "${INSTALL_DIR}/config/backup.yaml" "${INSTALL_DIR}/config/backup.yaml.bkp"
+  cp "${INSTALL_DIR}/config/backup.yaml" "${UPDATE_BACKUP_DIR}/config/backup.yaml"
   echo -e "${GREEN}[OK]${RESET} Backup de backup.yaml criado."
+fi
+for file in backup.sh restore.sh update.sh uninstall.sh VERSION CHANGELOG.md; do
+  [[ -f "${INSTALL_DIR}/${file}" ]] && cp "${INSTALL_DIR}/${file}" "${UPDATE_BACKUP_DIR}/root/" 2>/dev/null || true
+done
+[[ -f "${INSTALL_DIR}/bin/abm" ]] && cp "${INSTALL_DIR}/bin/abm" "${UPDATE_BACKUP_DIR}/bin/abm" 2>/dev/null || true
+if [[ -d "${INSTALL_DIR}/lib" ]]; then
+  cp -a "${INSTALL_DIR}/lib/." "${UPDATE_BACKUP_DIR}/lib/" 2>/dev/null || true
 fi
 
 # Garantir que a pasta bin existe
@@ -94,3 +113,4 @@ if [[ -n "$BACKUP_USER" ]]; then
 fi
 
 echo -e "${GREEN}[OK]${RESET} Atualização concluída com sucesso!"
+echo -e "${BLUE}[INFO]${RESET} Rollback manual disponível em: ${UPDATE_BACKUP_DIR}"

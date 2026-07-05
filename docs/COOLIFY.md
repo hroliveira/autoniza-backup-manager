@@ -64,3 +64,14 @@ No Coolify, você pode agendar o backup via:
 ### Exemplo de Docker Service para Backup
 
 Veja o arquivo `examples/docker-compose-apps.yaml` para um exemplo de container de backup.
+
+## Risco do Docker Socket
+
+Montar `/var/run/docker.sock` dentro de um container concede controle efetivo sobre o Docker do host. Na prática, isso equivale a alto privilégio operacional no servidor.
+
+Recomendações:
+
+- Prefira execução direta via cron no host quando possível.
+- Se o socket for necessário, use container isolado, imagem versionada e somente os mounts indispensáveis em modo leitura quando aplicável.
+- Não publique esse serviço externamente.
+- Exija validação operacional da Ariel antes de liberar em produção.

@@ -194,6 +194,34 @@ EOF
   log_success "--apply sem confirmação foi bloqueado."
 }
 
+test_operational_references() {
+  log_step "Validando referências operacionais seguras..."
+
+  if grep -R "hro\\.dev\\.br\\|minioadmin123" \
+    "$PROJECT_ROOT/config" "$PROJECT_ROOT/docs" "$PROJECT_ROOT/examples" \
+    "$PROJECT_ROOT/README.md" &>/dev/null; then
+    log_error "Foram encontradas referências operacionais inseguras."
+    exit 1
+  fi
+
+  if grep -R "releases/latest" "$PROJECT_ROOT/install.sh" "$PROJECT_ROOT/docs" &>/dev/null; then
+    log_error "Foram encontrados downloads sem pinagem."
+    exit 1
+  fi
+
+  if grep -R "^[[:space:]]*git pull" "$PROJECT_ROOT/bin" "$PROJECT_ROOT/install.sh" "$PROJECT_ROOT/update.sh" &>/dev/null; then
+    log_error "Foi encontrado git pull cego em script operacional."
+    exit 1
+  fi
+
+  if grep -R "image: .*latest" "$PROJECT_ROOT/docs" "$PROJECT_ROOT/examples" &>/dev/null; then
+    log_error "Foram encontradas imagens Docker sem pinagem."
+    exit 1
+  fi
+
+  log_success "Referências operacionais seguras."
+}
+
 main() {
   test_shell_syntax
   test_human_size
@@ -202,6 +230,7 @@ main() {
   test_cli_help
   test_restore_dry_run
   test_restore_apply_requires_confirmation
+  test_operational_references
   log_success "Todos os testes passaram com sucesso!"
 }
 

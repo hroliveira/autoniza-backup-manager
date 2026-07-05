@@ -13,6 +13,8 @@ services:
     volumes:
       - /opt/autoniza-backup:/opt/autoniza-backup:ro
       - /data:/data:ro
+      # Alto privilégio: docker.sock permite controlar o Docker do host.
+      # Use somente em ambiente isolado e validado antes de produção.
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - BACKUP_ROOT=/opt/autoniza-backup
