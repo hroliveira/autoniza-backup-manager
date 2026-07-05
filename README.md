@@ -1,41 +1,45 @@
-# 🔄 Autoniza Backup Manager
+# 🔄 Autoniza Backup Manager (v2.0)
 
-**Backup Manager para servidores Docker/Coolify** — automatiza backups de bancos de dados (PostgreSQL, MySQL, Redis) e pastas do sistema, armazenando tudo criptografado no S3/MinIO via Restic, com retenção configurável, verificação de integridade e notificações.
+**Plataforma Completa de Backup e Restore para servidores Linux, Docker e Coolify.** 
+
+O Autoniza Backup Manager centraliza toda a lógica de segurança em uma CLI moderna e poderosa chamada `abm`, automatizando dumps de bancos de dados (PostgreSQL, MySQL, Redis), pastas do sistema e volumes Docker, armazenando tudo criptografado no S3/MinIO via Restic.
 
 ---
 
 ## ✨ Funcionalidades
 
-- 📦 **Backup de bancos:** PostgreSQL (`pg_dump`), MySQL/MariaDB (`mysqldump`) e Redis (`redis-cli SAVE`)
-- 🗂️ **Backup de pastas:** Diretórios do sistema como `/data/coolify`
-- 🔐 **Criptografia:** Todos os backups são criptografados com Restic
-- ☁️ **Destino S3:** Compatível com MinIO, AWS S3, DigitalOcean Spaces, etc.
-- 📅 **Retenção:** Política configurável (diária, semanal, mensal) com `restic forget --prune`
-- ✅ **Verificação:** `restic check` opcional com subset de dados
-- 📊 **Relatórios:** Geração automática de relatórios em texto e HTML
-- 🔔 **Notificações:** Webhook para integração com n8n, Telegram, etc.
-- 🔌 **Hooks:** Scripts personalizáveis pré e pós-backup
-- 🐳 **Docker:** Integração total com containers Docker
+- 💻 **CLI Unificada (`abm`):** Uma única interface intuitiva para interagir com backups, restaurações, status, agendamento e diagnósticos.
+- 📦 **Backup de Bancos de Dados:** PostgreSQL (`pg_dump`), MySQL/MariaDB (`mysqldump`) e Redis (snapshots `.rdb`).
+- 🗂️ **Backup de Pastas do Sistema:** Diretórios arbitrários (como `/data/coolify`).
+- 🐳 **Docker Volumes:** Backup e restore integrados com containers ativos.
+- 🔐 **Criptografia Restic:** Criptografia de ponta a ponta nativa do Restic.
+- ☁️ **Destino S3/MinIO:** Armazenamento seguro em qualquer nuvem compatível com S3.
+- 📅 **Retenção Inteligente:** Aplicação de políticas diárias, semanais e mensais.
+- 🩺 **Doctor Checks (`abm doctor`):** Bateria de 20 testes de integridade e dependências com cálculo de **Health Score**.
+- 📊 **Relatórios Locais & Telemetria:** Arquivos txt/html gerados automaticamente e envio de Webhooks com payloads JSON detalhados.
+- 🔌 **Hooks Avançados:** Scripts customizados executados pré/pós backup e pré/pós restore.
+- ⏰ **Gerenciador Cron Integrado:** Configure agendamentos automáticos em segundos.
 
 ---
 
 ## 🚀 Instalação Rápida
 
+Clone o repositório e execute o instalador (como root para habilitar a CLI globalmente):
+
 ```bash
-# Clone ou copie os arquivos para o servidor
 git clone https://github.com/hroliveira/autoniza-backup-manager.git
 cd autoniza-backup-manager
-
-# Execute o instalador (como root)
 sudo bash install.sh
 ```
 
+A instalação irá configurar todos os arquivos em `/opt/autoniza-backup` e linkar a CLI globalmente em `/usr/local/bin/abm`.
+
+---
+
 ## ⚙️ Configuração
 
-### 1. Credenciais
-
+### 1. Credenciais S3/MinIO
 Edite `/opt/autoniza-backup/config/config.env`:
-
 ```env
 RESTIC_REPOSITORY="s3:https://api-minio.seudominio.com/coolifybkp"
 AWS_ACCESS_KEY_ID="sua_access_key"
@@ -43,10 +47,8 @@ AWS_SECRET_ACCESS_KEY="sua_secret_key"
 RESTIC_PASSWORD="senha_forte_para_criptografia"
 ```
 
-### 2. Backup
-
-Edite `/opt/autoniza-backup/config/backup.yaml`:
-
+### 2. Configurações de Escopo e Retenção
+Edite `/opt/autoniza-backup/config/backup.yaml` ou use `abm config`:
 ```yaml
 server:
   name: coolify-prod
@@ -61,98 +63,112 @@ folders:
   - /data/coolify
 
 postgres:
-  - name: coolify
+  - name: coolify-db
     container: coolify-db
     database: coolify
     user: coolify
 
 redis:
-  - name: coolify
+  - name: coolify-redis
     container: coolify-redis
+
+notifications:
+  webhook_url: "https://seu-n8n.dominio.com/webhook/backup"
 ```
 
-## ▶️ Uso
+---
 
-### Executar backup manualmente
+## ▶️ Uso da CLI `abm`
 
+O Autoniza Backup Manager fornece uma CLI moderna e interativa:
+
+### 1. Diagnósticos do Sistema
+Rode o doctor para verificar dependências, conexões, credenciais e permissões:
 ```bash
-sudo /opt/autoniza-backup/backup.sh
+abm doctor
 ```
 
-### Listar snapshots
-
+### 2. Executar Backup
+Inicie um processo completo de backup imediatamente:
 ```bash
-sudo /opt/autoniza-backup/restore.sh list
+abm backup
 ```
 
-### Restaurar um snapshot
-
+### 3. Restauração (Modo Interativo)
+Inicie o menu interativo para escolher o snapshot e o que deseja restaurar:
 ```bash
-sudo /opt/autoniza-backup/restore.sh restore <snapshot-id>
+abm restore
 ```
 
-### Restaurar o mais recente
-
+### 4. Restauração Direta / Simulação (Dry-Run)
+Restaure um snapshot diretamente ou faça uma simulação seca:
 ```bash
-sudo /opt/autoniza-backup/restore.sh latest
+abm restore --snapshot <snapshot-id>
+abm restore --snapshot <snapshot-id> --dry-run
 ```
 
-## ⏰ Agendar no Cron
-
-```cron
-0 2 * * * /opt/autoniza-backup/backup.sh >> /opt/autoniza-backup/logs/cron.log 2>&1
+### 5. Listar Snapshots
+Exiba todos os backups criptografados no repositório S3:
+```bash
+abm snapshots
 ```
 
-## 📁 Estrutura do Projeto
+### 6. Status do Servidor
+Obtenha detalhes de versão, espaço utilizado, contagem de backups e retenção ativa:
+```bash
+abm status
+```
+
+### 7. Histórico e Relatórios
+Visualize métricas sobre tempos de execução, sucessos, falhas e últimas execuções:
+```bash
+abm report
+```
+
+### 8. Gerenciamento do Cron
+Instale, exiba ou remova o backup automático no agendador Cron do Linux:
+```bash
+abm schedule
+```
+
+---
+
+## 📁 Estrutura de Diretórios v2
 
 ```
 /opt/autoniza-backup/
-├── backup.sh          # Script principal de backup
-├── restore.sh         # Script de restauração
-├── update.sh          # Atualização do sistema
-├── uninstall.sh       # Desinstalação
-├── config/
-│   ├── config.env     # Credenciais (editar)
-│   └── backup.yaml    # Configuração do backup (editar)
-├── lib/               # Bibliotecas bash
-│   ├── logger.sh      # Logging com cores e timestamp
-│   ├── utils.sh       # Utilitários diversos
-│   ├── restic.sh      # Wrapper Restic
-│   ├── docker.sh      # Utilitários Docker
-│   ├── postgres.sh    # Backup PostgreSQL
-│   ├── mysql.sh       # Backup MySQL/MariaDB
-│   ├── redis.sh       # Snapshot Redis
-│   ├── notify.sh      # Notificações webhook
-│   └── report.sh      # Relatórios texto/HTML
-├── hooks/             # Scripts customizáveis
-│   ├── pre-backup.sh  # Executado antes do backup
-│   └── post-backup.sh # Executado após o backup
-├── docs/              # Documentação
-├── examples/          # Exemplos de configuração
-├── logs/              # Logs do backup
-├── tmp/               # Arquivos temporários
-├── dumps/             # Dumps locais
-├── reports/           # Relatórios gerados
-└── restore/           # Dados restaurados
+├── backup.sh          # Wrapper legível de backup
+├── restore.sh         # Wrapper legível de restore
+├── update.sh          # Wrapper legível de atualização
+├── uninstall.sh       # Wrapper legível de desinstalação
+├── bin/
+│   └── abm            # Executável principal da CLI
+├── lib/               # Módulos e bibliotecas bash
+│   ├── config.sh      # Carregamento e validação de configs
+│   ├── doctor.sh      # Verificação de integridade e Health Score
+│   ├── snapshots.sh   # Listagem e busca de snapshots
+│   ├── schedule.sh    # Instalação e teste do Cron
+│   ├── retention.sh   # Aplicação de retenção
+│   ├── backup.sh      # Lógica de backup modularizada
+│   ├── restore.sh     # Lógica de restore interativo/direto
+│   ├── logger.sh      # Funções de log com cores
+│   ├── metrics.sh     # Parser de saída do restic
+│   ├── notify.sh      # Telemetria de webhooks
+│   └── utils.sh       # Utilitários de sistema
+├── hooks/             # Scripts customizáveis (pre-backup, post-backup, etc.)
+├── logs/              # Logs detalhados
+├── dumps/             # Dumps locais temporários
+├── reports/           # Relatórios gerados em txt e html
+└── restore/           # Diretório de restauração local
 ```
 
+---
 
 ## 🔔 Notificações Enterprise via n8n
 
-O Autoniza Backup Manager suporta telemetria avançada enviando payloads JSON ricos para um Webhook do n8n, permitindo auditorias, histórico de execuções e dashboards.
+O Autoniza Backup Manager envia notificações em JSON formatado contendo status da execução, metadados do sistema, métricas de arquivos/tamanhos e detalhes de erros para auditoria rápida.
 
-### Configuração
-
-1. No arquivo `/opt/autoniza-backup/config/backup.yaml`, ative as notificações e defina a URL do seu Webhook:
-   ```yaml
-   notifications:
-     enabled: true
-     webhook_url: "https://seu-n8n.dominio.com/webhook/caminho-do-seu-webhook"
-   ```
-
-### Estrutura Completa do Payload
-
-#### Exemplo de Sucesso
+### Payload de Sucesso
 ```json
 {
   "status": "success",
@@ -167,98 +183,23 @@ O Autoniza Backup Manager suporta telemetria avançada enviando payloads JSON ri
     "size": "2.016 MiB",
     "storage_used": "692.727 KiB"
   },
-  "execution": {
-    "id": "20260702-004313-a82aa91c",
-    "started_at": "2026-07-02T00:43:07-03:00",
-    "finished_at": "2026-07-02T00:43:13-03:00"
-  },
   "system": {
     "os": "Ubuntu 24.04",
     "kernel": "6.8.0",
     "docker": "28.3.0",
     "restic": "0.18.0",
-    "abm": "1.3.0"
+    "abm": "2.0.0"
   },
-  "message": "Backup concluído com sucesso.",
-  "timestamp": "2026-07-02T00:43:13-03:00"
+  "message": "Backup concluído com sucesso."
 }
 ```
 
-#### Exemplo de Erro
-```json
-{
-  "status": "error",
-  "server": "coolify-prod",
-  "environment": "production",
-  "hostname": "coolify",
-  "repository": "coolifybkp",
-  "snapshot": null,
-  "metrics": {
-    "duration": "4.92s",
-    "files": 31,
-    "size": "1.12 MiB",
-    "storage_used": "0 B"
-  },
-  "execution": {
-    "id": "20260702-004313-error",
-    "started_at": "2026-07-02T00:43:07-03:00",
-    "finished_at": "2026-07-02T00:43:12-03:00"
-  },
-  "system": {
-    "os": "Ubuntu 24.04",
-    "kernel": "6.8.0",
-    "docker": "28.3.0",
-    "restic": "0.18.0",
-    "abm": "1.3.0"
-  },
-  "error": {
-    "stage": "restic",
-    "code": "RESTIC_CONNECTION_ERROR",
-    "details": "S3 API request failed: connection refused"
-  },
-  "message": "Falha ao executar o backup.",
-  "timestamp": "2026-07-02T00:43:12-03:00"
-}
-```
-
-### Campos do Payload
-- `status`: Estado final da execução (`success` ou `error`).
-- `metrics`: Métricas de desempenho coletadas do Restic e temporizadores.
-- `execution`: Timestamps ISO e ID único da execução (`id`).
-- `system`: Metadados do servidor incluindo sistema operacional, kernel, docker, restic e versão do ABM.
-- `error`: Detalhes de falhas do estágio, códigos padronizados (ex: `PG_DUMP_FAILED`, `RESTIC_CONNECTION_ERROR`) e mensagem do erro.
-
-### Integração no n8n, Dashboards e Histórico
-1. **Consumo no n8n**: Configure um nó **Webhook** configurado para receber requisições do tipo POST. Conecte um nó **IF** para verificar `status == "success"`.
-2. **Alertas Instantâneos**: Utilize nós do Telegram, Slack ou Discord para formatar mensagens ricas em Markdown com o ID de execução e as métricas.
-3. **Dashboards e Auditoria**: Envie os payloads diretamente para bancos de dados como PostgreSQL, InfluxDB ou Elasticsearch para montar visualizações no Grafana ou Kibana, acompanhando o crescimento de volume armazenado e tempos médios de execução.
-
-## 📚 Documentação
-
-- [Guia de Instalação](docs/INSTALL.md)
-- [Guia de Restauração](docs/RESTORE.md)
-- [Configuração do MinIO/S3](docs/MINIO.md)
-- [Integração com Coolify](docs/COOLIFY.md)
-
-## 🛠 stack
-
-| Ferramenta   | Função                            |
-|-------------|-----------------------------------|
-| Bash        | Script principal                  |
-| Docker CLI  | Execução em containers            |
-| Restic      | Backup criptografado para S3      |
-| yq          | Parse de YAML                     |
-| jq          | Processamento JSON                |
-| cron        | Agendamento                       |
-| MinIO/S3    | Armazenamento dos backups         |
-| pg_dump     | Dump PostgreSQL                   |
-| mysqldump   | Dump MySQL/MariaDB                |
-| redis-cli   | Snapshot Redis                    |
+---
 
 ## 🤝 Contribuição
 
-Contribuições são bem-vindas! Sinta-se à vontade para abrir issues ou enviar pull requests.
+Sinta-se à vontade para abrir issues ou enviar pull requests!
 
 ## 📄 Licença
 
-MIT
+Distribuído sob a licença MIT.

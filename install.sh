@@ -1,13 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 # ═══════════════════════════════════════════════════════════════
-# Autoniza Backup Manager - Instalação
-# ═══════════════════════════════════════════════════════════════
-# Instala dependências, cria diretórios e configura o ambiente.
+# Autoniza Backup Manager - Instalação (v2.0.0)
 # ═══════════════════════════════════════════════════════════════
 
-
-# ── Cores ─────────────────────────────────────────────────────
 RESET="\033[0m"
 GREEN="\033[0;32m"
 YELLOW="\033[1;33m"
@@ -15,12 +11,10 @@ RED="\033[0;31m"
 BLUE="\033[0;34m"
 BOLD="\033[1m"
 
-# ── Configurações ─────────────────────────────────────────────
 INSTALL_DIR="/opt/autoniza-backup"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_USER="${SUDO_USER:-${USER}}"
 
-# ── Detectar distribuição ────────────────────────────────────
 detect_distro() {
   if [[ -f /etc/debian_version ]]; then
     echo "debian"
@@ -33,7 +27,6 @@ detect_distro() {
   fi
 }
 
-# ── Verificar se está rodando como root ──────────────────────
 check_root() {
   if [[ $EUID -ne 0 ]]; then
     echo -e "${YELLOW}⚠ Algumas operações requerem privilégios de root.${RESET}"
@@ -42,10 +35,8 @@ check_root() {
   fi
 }
 
-# ── Instalar dependências ────────────────────────────────────
 install_deps() {
   echo -e "${BLUE}[➜]${RESET} Verificando dependências..."
-
   local needs_install=false
   local missing=()
 
@@ -56,7 +47,6 @@ install_deps() {
     fi
   done
 
-  # yq pode ser yq (Python) ou o binário go-yq
   if ! command -v yq &>/dev/null && ! command -v yq-go &>/dev/null; then
     missing+=("yq")
     needs_install=true
@@ -77,10 +67,7 @@ install_deps() {
     debian)
       apt-get update -qq
       apt-get install -y -qq jq curl wget 2>/dev/null
-
-      # Restic
       if ! command -v restic &>/dev/null; then
-        echo -e "${BLUE}[➜]${RESET} Instalando Restic..."
         apt-get install -y -qq restic 2>/dev/null || {
           wget -q https://github.com/restic/restic/releases/latest/download/restic_linux_amd64.bz2 -O /tmp/restic.bz2
           bunzip2 /tmp/restic.bz2
@@ -88,10 +75,7 @@ install_deps() {
           chmod +x /usr/local/bin/restic
         }
       fi
-
-      # yq (go-yq)
       if ! command -v yq &>/dev/null; then
-        echo -e "${BLUE}[➜]${RESET} Instalando yq..."
         wget -q https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq
         chmod +x /usr/local/bin/yq
       fi
@@ -129,18 +113,16 @@ install_deps() {
       fi
       ;;
   esac
-
   echo -e "${GREEN}[OK]${RESET} Dependências instaladas."
 }
 
-# ── Instalar projeto ─────────────────────────────────────────
 install_project() {
   echo ""
   echo -e "${BLUE}[➜]${RESET} Instalando Autoniza Backup Manager em ${INSTALL_DIR}..."
 
-  # Criar diretório principal
   mkdir -p "$INSTALL_DIR"
   mkdir -p "${INSTALL_DIR}/config"
+  mkdir -p "${INSTALL_DIR}/bin"
   mkdir -p "${INSTALL_DIR}/lib"
   mkdir -p "${INSTALL_DIR}/hooks"
   mkdir -p "${INSTALL_DIR}/docs"
@@ -151,55 +133,59 @@ install_project() {
   mkdir -p "${INSTALL_DIR}/reports"
   mkdir -p "${INSTALL_DIR}/restore"
 
-  # Copiar arquivos do projeto
   echo -e "${BLUE}[➜]${RESET} Copiando arquivos..."
 
-  # Scripts principais
   cp -f "$PROJECT_DIR/backup.sh" "${INSTALL_DIR}/backup.sh" 2>/dev/null || true
   cp -f "$PROJECT_DIR/restore.sh" "${INSTALL_DIR}/restore.sh" 2>/dev/null || true
   cp -f "$PROJECT_DIR/update.sh" "${INSTALL_DIR}/update.sh" 2>/dev/null || true
   cp -f "$PROJECT_DIR/uninstall.sh" "${INSTALL_DIR}/uninstall.sh" 2>/dev/null || true
+  cp -f "$PROJECT_DIR/VERSION" "${INSTALL_DIR}/VERSION" 2>/dev/null || true
+  cp -f "$PROJECT_DIR/CHANGELOG.md" "${INSTALL_DIR}/CHANGELOG.md" 2>/dev/null || true
 
-  # Biblioteca
+  # Copiar abm CLI
+  if [[ -f "$PROJECT_DIR/bin/abm" ]]; then
+    cp -f "$PROJECT_DIR/bin/abm" "${INSTALL_DIR}/bin/abm"
+    chmod +x "${INSTALL_DIR}/bin/abm"
+    echo -e "${GREEN}[OK]${RESET} CLI abm instalada em ${INSTALL_DIR}/bin/abm"
+  fi
+
   for lib in "$PROJECT_DIR"/lib/*.sh; do
     cp -f "$lib" "${INSTALL_DIR}/lib/" 2>/dev/null || true
   done
 
-  # Hooks exemplos
   for hook in "$PROJECT_DIR"/hooks/*.sh.example; do
     cp -f "$hook" "${INSTALL_DIR}/hooks/" 2>/dev/null || true
   done
 
-  # Documentação
   for doc in "$PROJECT_DIR"/docs/*.md; do
     cp -f "$doc" "${INSTALL_DIR}/docs/" 2>/dev/null || true
   done
 
-  # Exemplos
-  for ex in "$PROJECT_DIR"/examples/*; do
-    cp -f "$ex" "${INSTALL_DIR}/examples/" 2>/dev/null || true
-  done
+  if [[ -d "$PROJECT_DIR/examples" ]]; then
+    for ex in "$PROJECT_DIR"/examples/*; do
+      cp -f "$ex" "${INSTALL_DIR}/examples/" 2>/dev/null || true
+    done
+  fi
 
-  # Configurações (não sobrescrever existentes)
   if [[ ! -f "${INSTALL_DIR}/config/config.env" ]]; then
     cp "$PROJECT_DIR/config/config.env.example" "${INSTALL_DIR}/config/config.env"
     echo -e "${GREEN}[OK]${RESET} config.env criado."
-  else
-    echo -e "${YELLOW}[INFO]${RESET} config.env já existe. Não foi sobrescrito."
   fi
 
   if [[ ! -f "${INSTALL_DIR}/config/backup.yaml" ]]; then
     cp "$PROJECT_DIR/config/backup.yaml.example" "${INSTALL_DIR}/config/backup.yaml"
     echo -e "${GREEN}[OK]${RESET} backup.yaml criado."
-  else
-    echo -e "${YELLOW}[INFO]${RESET} backup.yaml já existe. Não foi sobrescrito."
   fi
 
-  # Tornar scripts executáveis
   chmod +x "${INSTALL_DIR}"/*.sh 2>/dev/null || true
   chmod +x "${INSTALL_DIR}"/hooks/*.sh* 2>/dev/null || true
 
-  # Ajustar proprietário
+  # Link Simbólico
+  if [[ $EUID -eq 0 ]]; then
+    ln -sf "${INSTALL_DIR}/bin/abm" /usr/local/bin/abm
+    echo -e "${GREEN}[OK]${RESET} CLI abm linkada globalmente em /usr/local/bin/abm"
+  fi
+
   if [[ -n "$BACKUP_USER" ]]; then
     chown -R "$BACKUP_USER":"$BACKUP_USER" "$INSTALL_DIR" 2>/dev/null || true
   fi
@@ -207,41 +193,31 @@ install_project() {
   echo -e "${GREEN}[OK]${RESET} Instalação concluída em ${INSTALL_DIR}."
 }
 
-# ── Pós-instalação ───────────────────────────────────────────
 post_install() {
   echo ""
   echo "╔══════════════════════════════════════════════════════════════╗"
-  echo "║            Autoniza Backup Manager instalado!                ║"
+  echo "║         Autoniza Backup Manager instalado com sucesso!       ║"
   echo "╚══════════════════════════════════════════════════════════════╝"
   echo ""
+  echo -e "${BOLD}📋 Comandos disponíveis:${RESET}"
+  echo "  - ${BLUE}abm status${RESET}    : Verifica o status e resumo do servidor"
+  echo "  - ${BLUE}abm doctor${RESET}    : Roda diagnósticos e avalia o Health Score"
+  echo "  - ${BLUE}abm backup${RESET}    : Executa backup completo"
+  echo "  - ${BLUE}abm restore${RESET}   : Entra no modo de restauração interativo"
+  echo "  - ${BLUE}abm schedule${RESET}  : Gerencia agendamento Cron"
+  echo ""
   echo -e "${BOLD}📋 Próximos passos:${RESET}"
-  echo ""
-  echo "  1. Configure o MinIO/S3:"
-  echo "     ${BLUE}   sudo nano ${INSTALL_DIR}/config/config.env${RESET}"
-  echo ""
-  echo "  2. Configure os backups:"
-  echo "     ${BLUE}   sudo nano ${INSTALL_DIR}/config/backup.yaml${RESET}"
-  echo ""
-  echo "  3. Teste o backup manualmente:"
-  echo "     ${BLUE}   sudo ${INSTALL_DIR}/backup.sh${RESET}"
-  echo ""
-  echo "  4. Agende no cron (opcional):"
-  echo "     Adicione ao crontab:"
-  echo "     ${BLUE}   0 2 * * * ${INSTALL_DIR}/backup.sh >> ${INSTALL_DIR}/logs/cron.log 2>&1${RESET}"
-  echo ""
-  echo "  5. Veja a documentação completa:"
-  echo "     ${BLUE}   cat ${INSTALL_DIR}/docs/INSTALL.md${RESET}"
-  echo ""
-  echo -e "${YELLOW}⚠ Lembre-se de preencher as credenciais no config.env antes de executar o backup!${RESET}"
+  echo "  1. Ajuste as credenciais S3: ${BLUE}sudo nano ${INSTALL_DIR}/config/config.env${RESET}"
+  echo "  2. Configure os escopos:     ${BLUE}sudo nano ${INSTALL_DIR}/config/backup.yaml${RESET}"
+  echo "  3. Rode a checagem inicial:  ${BLUE}abm doctor${RESET}"
   echo ""
 }
 
-# ── Main ──────────────────────────────────────────────────────
 main() {
   echo ""
   echo "╔══════════════════════════════════════════════════════════════╗"
-  echo "║         Autoniza Backup Manager - Instalação                ║"
-  echo "╚══════════════════════════════════════════════════════════════╝"
+  echo "║         Autoniza Backup Manager - Instalação v2             ║"
+  echo "╚════════════════════════════════════════════════════════════════╝"
   echo ""
 
   check_root

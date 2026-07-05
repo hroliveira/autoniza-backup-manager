@@ -13,7 +13,11 @@ SYSTEM_ABM=""
 
 # ── Versão do Backup Manager ──────────────────────────────────
 abm_version() {
-  echo "1.3.0"
+  if [[ -f "${BACKUP_ROOT:-/opt/autoniza-backup}/VERSION" ]]; then
+    cat "${BACKUP_ROOT:-/opt/autoniza-backup}/VERSION" | tr -d '\r\n '
+  else
+    echo "2.0.0"
+  fi
 }
 
 # ── Obter SO ──────────────────────────────────────────────────

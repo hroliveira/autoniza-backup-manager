@@ -1,0 +1,391 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# ═══════════════════════════════════════════════════════════════
+# Autoniza Backup Manager - CLI Principal (abm)
+# ═══════════════════════════════════════════════════════════════
+
+# Caminhos absolutos
+BACKUP_ROOT="${BACKUP_ROOT:-/opt/autoniza-backup}"
+CONFIG_DIR="${BACKUP_ROOT}/config"
+LIB_DIR="${BACKUP_ROOT}/lib"
+LOG_DIR="${BACKUP_ROOT}/logs"
+TMP_DIR="${BACKUP_ROOT}/tmp"
+DUMP_DIR="${BACKUP_ROOT}/dumps"
+REPORT_DIR="${BACKUP_ROOT}/reports"
+
+# Carregar bibliotecas básicas
+# shellcheck source=lib/logger.sh
+source "${LIB_DIR}/logger.sh"
+# shellcheck source=lib/utils.sh
+source "${LIB_DIR}/utils.sh"
+# shellcheck source=lib/system.sh
+source "${LIB_DIR}/system.sh"
+# shellcheck source=lib/metrics.sh
+source "${LIB_DIR}/metrics.sh"
+# shellcheck source=lib/docker.sh
+source "${LIB_DIR}/docker.sh"
+# shellcheck source=lib/restic.sh
+source "${LIB_DIR}/restic.sh"
+# shellcheck source=lib/postgres.sh
+source "${LIB_DIR}/postgres.sh"
+# shellcheck source=lib/mysql.sh
+source "${LIB_DIR}/mysql.sh"
+# shellcheck source=lib/redis.sh
+source "${LIB_DIR}/redis.sh"
+# shellcheck source=lib/notify.sh
+source "${LIB_DIR}/notify.sh"
+# shellcheck source=lib/report.sh
+source "${LIB_DIR}/report.sh"
+
+# Novas bibliotecas v2
+# shellcheck source=lib/config.sh
+source "${LIB_DIR}/config.sh"
+# shellcheck source=lib/retention.sh
+source "${LIB_DIR}/retention.sh"
+# shellcheck source=lib/snapshots.sh
+source "${LIB_DIR}/snapshots.sh"
+# shellcheck source=lib/schedule.sh
+source "${LIB_DIR}/schedule.sh"
+# shellcheck source=lib/doctor.sh
+source "${LIB_DIR}/doctor.sh"
+# shellcheck source=lib/backup.sh
+source "${LIB_DIR}/backup.sh"
+# shellcheck source=lib/restore.sh
+source "${LIB_DIR}/restore.sh"
+
+# Catálogo de Códigos de Erros e Estágio atual
+CURRENT_STAGE="init"
+TEMP_DIR=""
+
+get_error_code() {
+  local stage="$1"
+  case "$stage" in
+    postgres)  echo "PG_DUMP_FAILED" ;;
+    mysql)     echo "MYSQL_DUMP_FAILED" ;;
+    redis)     echo "REDIS_SAVE_FAILED" ;;
+    restic)    echo "RESTIC_CONNECTION_ERROR" ;;
+    retention) echo "RESTIC_PRUNE_FAILED" ;;
+    check)     echo "RESTIC_CHECK_FAILED" ;;
+    notify)    echo "NOTIFICATION_FAILED" ;;
+    config)    echo "CONFIG_ERROR" ;;
+    backup)    echo "BACKUP_FAILED" ;;
+    restore)   echo "RESTORE_FAILED" ;;
+    *)         echo "UNKNOWN_ERROR" ;;
+  esac
+}
+
+on_error() {
+  local exit_code=$?
+  local line_no=$1
+  local command="$2"
+
+  metrics_stop_timer
+  local stage="${CURRENT_STAGE:-backup}"
+  local code
+  code=$(get_error_code "$stage")
+
+  metrics_generate_execution_id "error"
+
+  local duration
+  duration=$(metrics_get_duration)
+  local files
+  files=$(metrics_get_total_files)
+  local size
+  size=$(metrics_get_backup_size)
+  local storage_used
+  storage_used=$(metrics_get_storage_used)
+
+  local details="Erro na linha ${line_no} ao executar: ${command}"
+  log_error "Erro no estágio [${stage}] com código [${code}] (linha ${line_no}): ${command}"
+  
+  if [[ "$stage" == "restore" ]]; then
+    notify_restore_status "fail" "unknown" "$stage" "$details"
+  else
+    notify_error "$stage" "$code" "$details" "$duration" "$files" "$size" "$storage_used" "${BACKUP_START_TIME:-}" "${BACKUP_END_TIME:-}" "$EXECUTION_ID"
+  fi
+
+  [[ -n "${TEMP_DIR:-}" && -d "$TEMP_DIR" ]] && rm -rf "$TEMP_DIR" && log_info "Tmp limpo após erro: $TEMP_DIR"
+  exit "$exit_code"
+}
+trap 'on_error ${LINENO} "$BASH_COMMAND"' ERR
+
+cleanup() {
+  [[ -n "${TEMP_DIR:-}" && -d "$TEMP_DIR" ]] && rm -rf "$TEMP_DIR"
+}
+trap cleanup EXIT SIGINT SIGTERM
+
+# Carregar configurações em modo suave (se falhar, os comandos que não dependem do restic ainda funcionam)
+load_config --soft
+
+# ── Help ──────────────────────────────────────────────────────
+show_help() {
+  cat <<EOF
+Autoniza Backup Manager v$(abm_version)
+
+Uso: abm [comando] [opções]
+
+Comandos:
+  backup                   Executa o backup completo de bancos de dados, arquivos e volumes
+  restore                  Restaura dados de forma interativa ou direta
+  snapshots                Lista todos os snapshots disponíveis no repositório
+  doctor                   Executa testes de saúde do sistema e exibe um Health Score
+  status                   Mostra o status de configuração e resumo do servidor
+  report                   Mostra estatísticas e histórico das execuções de backup
+  config                   Menu para visualizar, editar e validar as configurações
+  schedule                 Menu para agendar e gerenciar o backup automático via Cron
+  update                   Atualiza a CLI para a versão mais recente via Git
+  help                     Mostra esta mensagem de ajuda
+
+Opções do comando restore:
+  --snapshot <id>          ID do snapshot a ser restaurado diretamente (sem interatividade)
+  --dry-run                Simula a restauração mostrando apenas o planejamento das ações
+  --target <dir>           Destino temporário para extração dos arquivos
+
+EOF
+}
+
+# ── Comando: status ──────────────────────────────────────────
+show_status() {
+  log_step "Coletando status do sistema..."
+  collect_system_info
+
+  local last_bkp="Nunca"
+  local last_snap="Nenhum"
+  local snap_count=0
+  local repo_size="0 B"
+  
+  if command -v restic &>/dev/null && [[ -n "${RESTIC_REPOSITORY:-}" ]]; then
+    local snaps_json
+    snaps_json=$(restic snapshots --json 2>/dev/null || echo "[]")
+    snap_count=$(echo "$snaps_json" | jq '. | length' 2>/dev/null || echo 0)
+    if [[ "$snap_count" -gt 0 ]]; then
+      last_snap=$(echo "$snaps_json" | jq -r 'last | .short_id')
+      last_bkp=$(echo "$snaps_json" | jq -r 'last | .time' | sub("\\.[0-9]+"; "") | tr -d 'TZ')
+    fi
+  fi
+
+  local cron_status="Inativo"
+  if crontab -l 2>/dev/null | grep -Fq "autoniza-backup"; then
+    cron_status="Ativo (Diário às 02:00)"
+  fi
+
+  local webhook_status="Não configurado"
+  if [[ -n "${WEBHOOK_URL:-}" ]]; then
+    webhook_status="Configurado (${WEBHOOK_URL})"
+  fi
+
+  echo ""
+  echo "╔══════════════════════════════════════════════════════════════╗"
+  echo "║         Autoniza Backup Manager - Status do Servidor         ║"
+  echo "╚══════════════════════════════════════════════════════════════╝"
+  echo ""
+  echo "  Servidor:           ${SERVER_NAME:-Não configurado}"
+  echo "  Ambiente:           ${SERVER_ENV:-Não configurado}"
+  echo "  Hostname:           $(hostname)"
+  echo "  Versão:             $(abm_version)"
+  echo "  Sistema Operacional: ${SYSTEM_OS:-Linux}"
+  echo "  Kernel:             ${SYSTEM_KERNEL:-}"
+  echo "  Último Backup:      ${last_bkp}"
+  echo "  Último Snapshot:    ${last_snap}"
+  echo "  Total Snapshots:    ${snap_count}"
+  echo "  Repositório Restic: ${RESTIC_REPOSITORY:-Não configurado}"
+  echo "  Retenção:           Daily: ${RET_DAILY:-7} | Weekly: ${RET_WEEKLY:-4} | Monthly: ${RET_MONTHLY:-12}"
+  echo "  Agendamento Cron:   ${cron_status}"
+  echo "  Notificação Webhook:${webhook_status}"
+  echo ""
+}
+
+# ── Comando: report ──────────────────────────────────────────
+show_report() {
+  log_step "Gerando relatório histórico de execuções..."
+  
+  if [[ ! -d "$REPORT_DIR" ]]; then
+    log_warn "Nenhum relatório encontrado."
+    return 0
+  fi
+
+  local total_bkps
+  total_bkps=$(find "$REPORT_DIR" -maxdepth 1 -name "backup_*.txt" | wc -l)
+  if [[ "$total_bkps" -eq 0 ]]; then
+    log_info "Sem histórico de backups armazenado em: $REPORT_DIR"
+    return 0
+  fi
+
+  local success_count=0
+  local fail_count=0
+  local avg_seconds=0
+  local max_size_bytes=0
+  local min_size_bytes=999999999999
+  
+  # Buscar saídas nos relatórios text
+  while IFS= read -r rfile; do
+    if grep -q "Status:[[:space:]]*success" "$rfile"; then
+      success_count=$((success_count + 1))
+    else
+      fail_count=$((fail_count + 1))
+    fi
+  done < <(find "$REPORT_DIR" -name "backup_*.txt")
+
+  echo ""
+  echo "╔══════════════════════════════════════════════════════════════╗"
+  echo "║         Autoniza Backup Manager - Estatísticas               ║"
+  echo "╚══════════════════════════════════════════════════════════════╝"
+  echo ""
+  echo "  Total de Backups Registrados: ${total_bkps}"
+  echo "  Sucessos:                     ${success_count}"
+  echo "  Falhas:                       ${fail_count}"
+  echo ""
+  echo "Últimas 5 Execuções:"
+  find "$REPORT_DIR" -name "backup_*.txt" | sort -r | head -n 5 | while read -r rfile; do
+    local b_date b_status b_snap b_dur
+    b_date=$(basename "$rfile" | sed -E 's/backup_([0-9]{8})_([0-9]{6})\.txt/\1 \2/')
+    b_status=$(grep "Status:" "$rfile" | awk '{print $2}')
+    b_snap=$(grep "Snapshot:" "$rfile" | awk '{print $2}')
+    b_dur=$(grep "Duração:" "$rfile" | awk '{print $2}')
+    echo "  - ${b_date} | Status: ${b_status} | Snapshot: ${b_snap} | Duração: ${b_dur}"
+  done
+  echo ""
+}
+
+# ── Comando: config ──────────────────────────────────────────
+manage_config() {
+  while true; do
+    echo "=== Configuração do Backup Manager ==="
+    echo "1) Editar backup.yaml (Configuração de Escopo)"
+    echo "2) Editar config.env (Credenciais e Repositório)"
+    echo "3) Mostrar Configurações Ativas"
+    echo "4) Validar Configurações"
+    echo "5) Voltar"
+    read -rp "Opção (1-5): " opt
+    case "$opt" in
+      1)
+        local editor="${EDITOR:-nano}"
+        "$editor" "$BACKUP_YAML"
+        ;;
+      2)
+        local editor="${EDITOR:-nano}"
+        "$editor" "$CONFIG_ENV"
+        ;;
+      3)
+        echo "--- backup.yaml ---"
+        cat "$BACKUP_YAML"
+        echo ""
+        echo "--- config.env ---"
+        grep -v "PASSWORD" "$CONFIG_ENV" || true
+        echo "RESTIC_PASSWORD=********"
+        echo ""
+        ;;
+      4)
+        # Forçar carregamento com validação estrita
+        if load_config; then
+          log_success "Configurações válidas."
+        fi
+        ;;
+      5)
+        break
+        ;;
+      *)
+        log_warn "Opção inválida."
+        ;;
+    esac
+    echo ""
+  done
+}
+
+# ── Comando: update ──────────────────────────────────────────
+run_cli_update() {
+  log_step "Buscando atualizações no Git..."
+  if ! command -v git &>/dev/null; then
+    log_error "Comando git não encontrado. Atualização manual necessária."
+    return 1
+  fi
+  
+  if git pull; then
+    log_success "Código sincronizado da origem. Atualizando arquivos no sistema..."
+    # Copiar os arquivos para a pasta de instalação
+    if [[ -d "$BACKUP_ROOT" ]]; then
+      # Fazer backup das configurações
+      [[ -f "${BACKUP_ROOT}/config/config.env" ]] && cp "${BACKUP_ROOT}/config/config.env" "${BACKUP_ROOT}/config/config.env.bkp"
+      [[ -f "${BACKUP_ROOT}/config/backup.yaml" ]] && cp "${BACKUP_ROOT}/config/backup.yaml" "${BACKUP_ROOT}/config/backup.yaml.bkp"
+      
+      # Instalar via script de instalação da raiz
+      bash "${BACKUP_ROOT}/update.sh"
+    fi
+  else
+    log_error "Falha ao executar git pull."
+  fi
+}
+
+# ── Main Entrypoint Parser ───────────────────────────────────
+main() {
+  local cmd="${1:-help}"
+  shift 2>/dev/null || true
+
+  case "$cmd" in
+    backup)
+      CURRENT_STAGE="backup"
+      run_backup
+      ;;
+    restore)
+      CURRENT_STAGE="restore"
+      local snap_id=""
+      local dry_run="false"
+      local target=""
+      
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          --snapshot) snap_id="$2"; shift 2 ;;
+          --dry-run) dry_run="true"; shift ;;
+          --target) target="$2"; shift 2 ;;
+          *) log_error "Opção desconhecida: $1"; exit 1 ;;
+        esac
+      done
+      
+      if [[ -n "$snap_id" ]]; then
+        if ! validate_snapshot "$snap_id"; then
+          exit 1
+        fi
+        execute_restore "$snap_id" "all" "$dry_run" "$target"
+      else
+        interactive_restore
+      fi
+      ;;
+    snapshots)
+      list_snapshots_table
+      ;;
+    doctor)
+      CURRENT_STAGE="check"
+      run_doctor
+      ;;
+    status)
+      show_status
+      ;;
+    report)
+      show_report
+      ;;
+    config)
+      manage_config
+      ;;
+    schedule)
+      manage_schedule_menu
+      ;;
+    update)
+      run_cli_update
+      ;;
+    help|--help|-h)
+      show_help
+      ;;
+    -v|--version)
+      echo "v$(abm_version)"
+      ;;
+    *)
+      log_error "Comando desconhecido: $cmd"
+      echo ""
+      show_help
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"
